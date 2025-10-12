@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AgroAlert 🌿</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      background: #f5f5f5;
+    }
+    header {
+      background: #4CAF50;
+      color: white;
+      padding: 15px;
+      text-align: center;
+    }
+    nav {
+      display: flex;
+      justify-content: center;
+      background: #388E3C;
+    }
+    nav a {
+      color: white;
+      text-decoration: none;
+      padding: 14px 20px;
+      display: block;
+    }
+    nav a:hover {
+      background: #2E7D32;
+    }
+    section {
+      padding: 20px;
+    }
+    .camera {
+      text-align: center;
+    }
+    video, canvas {
+      width: 80%;
+      max-width: 500px;
+      border: 3px solid #4CAF50;
+      border-radius: 10px;
+    }
+    button {
+      margin: 10px 5px;
+      padding: 10px 20px;
+      border: none;
+      background: #4CAF50;
+      color: white;
+      font-size: 16px;
+      cursor: pointer;
+      border-radius: 5px;
+    }
+    button:hover {
+      background: #388E3C;
+    }
+    .clima-box {
+      background: white;
+      border-radius: 10px;
+      padding: 15px;
+      max-width: 400px;
+      margin: auto;
+      text-align: center;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+    }
+    #result {
+      margin-top: 20px;
+      background: white;
+      border-radius: 10px;
+      padding: 15px;
+      max-width: 500px;
+      margin: 20px auto;
+      box-shadow: 0 2px 6px rgba(0,0,0,0.2);
+      text-align: left;
+    }
+  </style>
+</head>
+<body>
+
+<header>
+  <h1>AgroAlert 🌿</h1>
+  <p>Escanea plantas y conoce su información junto con el clima actual</p>
+</header>
+
+<nav>
+  <a href="#inicio">Inicio</a>
+  <a href="#info">Información</a>
+  <a href="#clima">Clima</a>
+  <a href="#scanner">Escáner de Plantas</a>
+</nav>
+
+<section id="inicio">
+  <h2>Bienvenido</h2>
+  <p>La agricultura sustentable promueve el equilibrio entre productividad y cuidado del medio ambiente. Con AgroAlert, puedes identificar plantas y conocer las condiciones climáticas ideales para su desarrollo.</p>
+</section>
+
+<section id="clima">
+  <h2>Clima en tu Ciudad</h2>
+  <div class="clima-box">
+    <p id="infoClima">Obteniendo clima...</p>
+  </div>
+</section>
+
+<section id="scanner" class="camera">
+  <h2>Escáner de Plantas</h2>
+  <p>Activa tu cámara para escanear una planta:</p>
+  <video id="camera" autoplay playsinline></video><br>
+  <button id="btnStart">📷 Activar Cámara</button>
+  <button id="btnFlash">💡 Flash</button>
+  <button id="btnStop">❌ Detener Cámara</button>
+  <button id="btnCapture">🌿 Escanear Planta</button>
+  <canvas id="snapshot" style="display:none;"></canvas>
+  <div id="result"></div>
+</section>
+
+<script>
+  const climaBox = document.getElementById("infoClima");
+  const apiKeyClima = "98c604119b6a2cae19503435edb7118f"; // OpenWeatherMap
+  const plantApiKey = "alKkbhKmfxGUxzyB8RnahWZHypMA5Ol216dWE4qrOg7PBeJX5A"; // 👈 Pega aquí tu clave real de Plant.id
+
+  // ===== CLIMA =====
+  if ("geolocation" in navigator) {
+    navigator.geolocation.getCurrentPosition(async (position) => {
+      const lat = position.coords.latitude;
+      const lon = position.coords.longitude;
+      try {
+        const resp = await fetch(`https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&units=metric&lang=es&appid=${apiKeyClima}`);
+        const data = await resp.json();
+        const temp = data.main.temp;
+        const clima = data.weather[0].description;
+        const ciudad = data.name;
+        climaBox.innerHTML = `🌍 Estás en <b>${ciudad}</b><br>🌡️ ${temp}°C, ${clima}`;
+      } catch (err) {
+        climaBox.textContent = "No se pudo obtener el clima.";
+      }
+    }, () => {
+      climaBox.textContent = "No se permitió el acceso a la ubicación.";
+    });
+  } else {
+    climaBox.textContent = "Tu navegador no soporta geolocalización.";
+  }
+
+  // ===== CÁMARA Y FLASH =====
+  const video = document.getElementById('camera');
+  const btnStart = document.getElementById('btnStart');
+  const btnStop = document.getElementById('btnStop');
+  const btnCapture = document.getElementById('btnCapture');
+  const btnFlash = document.getElementById('btnFlash');
+  const canvas = document.getElementById('snapshot');
+  const result = document.getElementById('result');
+  let stream;
+  let track;
+  let flashOn = false;
+
+  async function startCamera() {
+    try {
+      stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" } }
+      });
+      video.srcObject = stream;
+      track = stream.getVideoTracks()[0];
+    } catch (err) {
+      alert("Error al acceder a la cámara: " + err);
+    }
+  }
+
+  btnStart.addEventListener('click', startCamera);
+
+  btnStop.addEventListener('click', () => {
+    if (stream) {
+      stream.getTracks().forEach(track => track.stop());
+      video.srcObject = null;
+    }
+  });
+
+  btnFlash.addEventListener('click', async () => {
+    if (!track) return alert("Primero activa la cámara.");
+    const capabilities = track.getCapabilities();
+    if (!capabilities.torch) {
+      alert("⚠️ Tu dispositivo no soporta flash desde el navegador.");
+      return;
+    }
+    flashOn = !flashOn;
+    await track.applyConstraints({ advanced: [{ torch: flashOn }] });
+    btnFlash.textContent = flashOn ? "💡 Flash ON" : "💡 Flash OFF";
+  });
+
+  // ===== ESCANEO DE PLANTAS =====
+  btnCapture.addEventListener("click", async () => {
+    if (!stream) return alert("Primero activa la cámara 🌿");
+
+    result.innerHTML = "🔍 Analizando planta...";
+
+    const ctx = canvas.getContext("2d");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+    const imageBase64 = canvas.toDataURL("image/jpeg").split(",")[1];
+
+    try {
+      const res = await fetch("https://api.plant.id/v3/identification", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "Api-Key": "alKkbhKmfxGUxzyB8RnahWZHypMA5Ol216dWE4qrOg7PBeJX5A"
+        },
+        body: JSON.stringify({
+          images: [imageBase64],
+          similar_images: true,
+          classification_level: "species",
+          plant_details: ["common_names", "wiki_description", "taxonomy", "url"]
+        })
+      });
+
+      const data = await res.json();
+      console.log("Respuesta de Plant.id:", data);
+
+      if (!data.result || !data.result.classification || data.result.classification.suggestions.length === 0) {
+        result.innerHTML = "❌ No se pudo identificar la planta.";
+        return;
+      }
+
+      const plant = data.result.classification.suggestions[0];
+      const climaTexto = climaBox.innerText || "";
+
+      result.innerHTML = `
+        <h3>${plant.name}</h3>
+        <p><strong>Nombres comunes:</strong> ${plant.details?.common_names?.join(", ") || "No disponibles"}</p>
+        <p><strong>Descripción:</strong> ${plant.details?.wiki_description?.value || "Sin descripción disponible"}</p>
+        <p><strong>Clasificación:</strong> ${plant.details?.taxonomy?.class || "Desconocida"}</p>
+        <p><strong>Condiciones actuales:</strong> ${climaTexto}</p>
+        <p><em>Según el clima, esta planta puede prosperar mejor con ${
+          climaTexto.includes("lluvia") ? "alta humedad 🌧️" : "buen sol ☀️"
+        }.</em></p>
+        <a href="${plant.details?.url}" target="_blank">🌍 Ver más información</a>
+      `;
+    } catch (error) {
+      console.error(error);
+      result.innerHTML = "⚠️ Error al analizar la planta.";
+    }
+  });
+</script>
+
+</body>
+</html>
+
+
+
+
