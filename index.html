@@ -1,0 +1,177 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AgroAlert 🌿</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: linear-gradient(180deg, #c8e6c9, #a5d6a7);
+      text-align: center;
+      padding: 20px;
+    }
+    h1 {
+      color: #2e7d32;
+    }
+    video, canvas, img {
+      width: 90%;
+      max-width: 400px;
+      border-radius: 12px;
+      margin-top: 10px;
+    }
+    button {
+      margin: 10px;
+      padding: 12px 20px;
+      font-size: 16px;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+      background-color: #43a047;
+      color: white;
+    }
+    button:hover {
+      background-color: #2e7d32;
+    }
+    #result, #clima {
+      margin-top: 20px;
+      background: white;
+      padding: 15px;
+      border-radius: 10px;
+      box-shadow: 0px 3px 5px rgba(0,0,0,0.2);
+    }
+  </style>
+</head>
+<body>
+  <h1>🌱 AgroAlert - Tu asistente inteligente de campo</h1>
+  <p>Escaneá una planta con tu cámara para conocer sus características y el clima actual de tu zona.</p>
+
+  <video id="video" autoplay playsinline></video><br>
+  <button id="captureBtn">📸 Capturar Planta</button>
+  <button id="analyzeBtn">🔍 Analizar Planta</button>
+
+  <div id="result"><b>Resultado:</b> Esperando captura...</div>
+  <div id="clima"><b>Clima:</b> Cargando información...</div>
+
+  <canvas id="canvas" style="display:none;"></canvas>
+
+  <h2>Sobre AgroAlert</h2>
+  <p>
+    AgroAlert es un proyecto innovador enfocado en la agricultura inteligente. Su objetivo es facilitar el reconocimiento de plantas, cultivos y malezas mediante inteligencia artificial.  
+    Además, brinda información meteorológica en tiempo real para ayudar a los agricultores a tomar decisiones más informadas, optimizando el rendimiento y el cuidado del suelo.  
+    Con AgroAlert, el productor rural tiene en su mano una herramienta poderosa para conocer, aprender y proteger sus cultivos. 🌾🌦️
+  </p>
+
+  <script>
+    const video = document.getElementById("video");
+    const canvas = document.getElementById("canvas");
+    const resultDiv = document.getElementById("result");
+    const climaDiv = document.getElementById("clima");
+    const captureBtn = document.getElementById("captureBtn");
+    const analyzeBtn = document.getElementById("analyzeBtn");
+
+    let imageBase64 = "";
+
+    // 🎥 Activar cámara trasera
+    async function startCamera() {
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: "environment" }
+        });
+        video.srcObject = stream;
+      } catch (error) {
+        alert("Error al acceder a la cámara: " + error.message);
+      }
+    }
+
+    startCamera();
+
+    // 📸 Capturar imagen
+    captureBtn.addEventListener("click", () => {
+      const context = canvas.getContext("2d");
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      context.drawImage(video, 0, 0);
+      imageBase64 = canvas.toDataURL("image/jpeg");
+      resultDiv.innerHTML = "✅ Imagen capturada correctamente.";
+    });
+
+    // 🔍 Analizar planta con PlantNet (usando proxy)
+    analyzeBtn.addEventListener("click", async () => {
+      if (!imageBase64) {
+        alert("Primero capturá una imagen de la planta 📷");
+        return;
+      }
+
+      resultDiv.innerHTML = "⏳ Analizando planta...";
+      const proxy = "https://corsproxy.io/?";
+      const plantnetUrl = `https://my-api.plantnet.org/v2/identify/all?api-key=2b10Qs28vxFt2BCRc75shv3O`;
+
+      try {
+        const res = await fetch(proxy + plantnetUrl, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            images: [imageBase64],
+            organs: ["leaf", "flower", "fruit", "bark"]
+          })
+        });
+
+        const data = await res.json();
+        console.log("PlantNet:", data);
+
+        if (data && data.results && data.results.length > 0) {
+          const top = data.results[0];
+          resultDiv.innerHTML = `
+            🌿 <b>Planta detectada:</b> ${top.species.scientificNameWithoutAuthor}<br>
+            🌸 <b>Nombre común:</b> ${top.species.commonNames.join(", ") || "No disponible"}<br>
+            🧬 <b>Familia:</b> ${top.species.family.scientificName}<br>
+            📊 <b>Probabilidad:</b> ${(top.score * 100).toFixed(2)}%
+          `;
+        } else {
+          resultDiv.innerHTML = "❌ No se pudo identificar la planta con claridad.";
+        }
+      } catch (err) {
+        console.error(err);
+        resultDiv.innerHTML = "⚠️ Error al analizar la planta.";
+      }
+    });
+
+    // 🌤️ Obtener clima actual (OpenWeather)
+    async function obtenerClima() {
+      try {
+        const pos = await new Promise((res, rej) => 
+          navigator.geolocation.getCurrentPosition(res, rej)
+        );
+        const lat = pos.coords.latitude;
+        const lon = pos.coords.longitude;
+        const apiKey = "da868e103f04ff142cc11bf0c25e3c02"; // ⚠️ reemplazá con tu clave real
+
+        const url = `https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${apiKey}&units=metric&lang=es`;
+        const res = await fetch(url);
+        const data = await res.json();
+
+        climaDiv.innerHTML = `
+          🌎 <b>Ubicación:</b> ${data.name}<br>
+          🌡️ <b>Temperatura:</b> ${data.main.temp}°C<br>
+          💧 <b>Humedad:</b> ${data.main.humidity}%<br>
+          ☁️ <b>Clima:</b> ${data.weather[0].description}
+        `;
+      } catch (e) {
+        climaDiv.innerHTML = "⚠️ No se pudo obtener el clima.";
+      }
+    }
+
+    obtenerClima();
+  </script>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
