@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>AgroAlert - Escáner de Plantas</title>
+  <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600&display=swap" rel="stylesheet"> <!-- Fuente web para mayor estética -->
+  <style>
+    body {
+      font-family: "Poppins", sans-serif;
+      background: linear-gradient(to bottom right, #e8f5e9, #c8e6c9);
+      color: #1b5e20;
+      margin: 0;
+      padding: 0;
+      text-align: center;
+      display: flex;
+      flex-direction: column;
+      min-height: 100vh; /* Asegura que el footer esté al final */
+    }
+    header {
+      background-color: #388e3c;
+      color: white;
+      padding: 20px 10px;
+      box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+      animation: fadeIn 1s ease-in; /* Animación de entrada */
+    }
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    h1 { margin: 0; font-size: 2.5em; }
+    p { font-size: 1.1em; margin: 5px 0; }
+    #camera-container {
+      margin: 20px auto;
+      max-width: 600px;
+      padding: 20px;
+      background: rgba(255, 255, 255, 0.8); /* Fondo semi-transparente para estética */
+      border-radius: 15px;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.15);
+      transition: transform 0.3s; /* Transición suave */
+    }
+    #camera-container:hover { transform: scale(1.02); } /* Efecto hover */
+    video, canvas {
+      width: 100%;
+      max-width: 400px;
+      border-radius: 12px;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.2);
+      margin: 10px auto;
+    }
+    button {
+      background-color: #4caf50;
+      color: white;
+      border: none;
+      padding: 12px 20px;
+      border-radius: 8px;
+      margin: 10px;
+      cursor: pointer;
+      transition: background 0.3s, transform 0.3s; /* Transiciones suaves */
+      font-size: 1em;
+    }
+    button:hover {
+      background-color: #2e7d32;
+      transform: scale(1.05); /* Efecto de agrandado */
+    }
+    #result, #weather, #about {
+      background: white;
+      margin: 20px auto;
+      padding: 20px;
+      border-radius: 15px;
+      width: 90%;
+      max-width: 600px;
+      box-shadow: 0 5px 15px rgba(0, 0, 0, 0.15);
+      text-align: left;
+      animation: slideUp 0.5s ease-out; /* Animación de aparición */
+    }
+    @keyframes slideUp {
+      from { opacity: 0; transform: translateY(20px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+    footer {
+      background-color: #2e7d32;
+      color: white;
+      padding: 15px;
+      margin-top: auto; /* Empuja al footer al final */
+      font-size: 0.9em;
+      text-align: center;
+      box-shadow: 0 -2px 5px rgba(0,0,0,0.1);
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>🌿 AgroAlert</h1>
+    <p>Escaneá plantas, obtené información clave y consultá el clima en tu zona</p>
+  </header>
+
+  <section id="camera-container">
+    <video id="camera" autoplay playsinline></video><br>
+    <button id="capture-btn">📸 Capturar y Analizar</button>
+    <button id="restart-camera" onclick="restartCamera()">🔄 Reiniciar Cámara</button>
+    <canvas id="snapshot" style="display:none;"></canvas>
+  </section>
+
+  <section id="result">
+    <h2>🔍 Resultado del Análisis</h2>
+    <p id="plant-name">Aún no se ha realizado un análisis.</p>
+    <p id="plant-info"></p>
+  </section>
+
+  <section id="weather">
+    <h2>🌤️ Clima Actual</h2>
+    <p id="weather-data">Cargando datos del clima...</p>
+  </section>
+
+  <section id="about">
+    <h2>🌾 Sobre el Proyecto AgroAlert</h2>
+    <p>
+      AgroAlert es una iniciativa tecnológica enfocada en el monitoreo inteligente de cultivos y 
+      la identificación de especies vegetales mediante inteligencia artificial. 
+      Nuestro objetivo es ayudar a productores, estudiantes y amantes del campo a reconocer 
+      las plantas y detectar condiciones ambientales que puedan afectar su crecimiento.
+    </p>
+    <p>
+      El sistema combina el poder del reconocimiento visual de <strong>PlantNet</strong> con la 
+      información meteorológica de <strong>OpenWeather</strong>, ofreciendo una herramienta 
+      accesible y moderna para el manejo sostenible de los recursos agrícolas.
+    </p>
+    <p>
+      En futuras versiones, AgroAlert incorporará alertas personalizadas sobre plagas, humedad del suelo, 
+      pronósticos a 7 días y análisis comparativos de especies, consolidándose como una app integral para el campo.
+    </p>
+  </section>
+
+  <footer>
+    Proyecto desarrollado por Alumnos de 6to C. Albornoz Jose Ignacio,Catalani Lucia,Bonici Aaron,Daneri Ulises,Flores Nahuel y Toro Ana Sofia | 2025 
+    <br>
+    E.E.T.P N° 669 "GENERAL JOSÉ DE SAN MARTIN"
+  </footer>
+
+  <script>
+  // ⚙️ CLAVES PERSONALES
+  const PLANTNET_API_KEY = "2b10Qs28vxFt2BCRc75shv3O";
+  const OPENWEATHER_API_KEY = "07610b6478912088ff2d3f1bb6687bec";
+
+  // ⚙️ PROXYS
+  const GET_PROXY = "https://corsproxy.io/?"; // para OpenWeather
+  const POST_PROXY = "https://api.allorigins.win/raw?url="; // para PlantNet (mejor con FormData)
+
+  // 🎥 Cámara
+  const video = document.getElementById("camera");
+  const canvas = document.getElementById("snapshot");
+  const captureBtn = document.getElementById("capture-btn");
+
+  async function startCamera() {
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: { ideal: "environment" } },
+      });
+      video.srcObject = stream;
+    } catch (error) {
+      alert("No se pudo acceder a la cámara: " + error.message);
+    }
+  }
+  startCamera();
+
+  async function restartCamera() {
+    if (video.srcObject) {
+      video.srcObject.getTracks().forEach(track => track.stop());
+    }
+    startCamera();
+  }
+
+  // 📸 Captura y Análisis con PlantNet
+  captureBtn.addEventListener("click", async () => {
+    if (video.videoWidth === 0) {
+      alert("Esperá a que la cámara se inicie correctamente.");
+      return;
+    }
+
+    const ctx = canvas.getContext("2d");
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    const blob = await new Promise(res => canvas.toBlob(res, "image/jpeg"));
+    const formData = new FormData();
+    formData.append("organs", "leaf");
+    formData.append("images", blob, "plant.jpg");
+
+    document.getElementById("plant-name").innerText = "🔎 Analizando planta...";
+    document.getElementById("plant-info").innerText = "Por favor, espera un momento...";
+
+    try {
+      const apiUrl = `${POST_PROXY}https://my-api.plantnet.org/v2/identify/all?api-key=${PLANTNET_API_KEY}`;
+      const res = await fetch(apiUrl, {
+        method: "POST",
+        body: formData,
+        headers: { "Accept": "application/json" }
+      });
+
+      if (!res.ok) throw new Error(`Error HTTP ${res.status}`);
+
+      const data = await res.json();
+
+      if (data.results?.length > 0) {
+        const best = data.results[0];
+        document.getElementById("plant-name").innerText = `🌿 ${best.species.scientificNameWithoutAuthor}`;
+        document.getElementById("plant-info").innerText =
+          `Nombre común: ${best.species.commonNames?.join(", ") || "No disponible"}\n` +
+          `Familia: ${best.species.family?.scientificName || "Desconocida"}\n` +
+          `Confianza: ${(best.score * 100).toFixed(1)}%`;
+      } else {
+        document.getElementById("plant-name").innerText = "No se pudo identificar la planta.";
+        document.getElementById("plant-info").innerText = "Intenta con otra imagen.";
+      }
+    } catch (err) {
+      document.getElementById("plant-name").innerText = "⚠️ Error al analizar la planta.";
+      document.getElementById("plant-info").innerText = "Detalle: " + err.message;
+    }
+  });
+
+  // 🌤️ Clima con OpenWeather
+  async function obtenerClima() {
+    if (!navigator.geolocation) {
+      document.getElementById("weather-data").innerText = "No se pudo obtener tu ubicación.";
+      return;
+    }
+
+    navigator.geolocation.getCurrentPosition(async (pos) => {
+      document.getElementById("weather-data").innerText = "Cargando clima...";
+      const lat = pos.coords.latitude;
+      const lon = pos.coords.longitude;
+      const url = `${GET_PROXY}https://api.openweathermap.org/data/2.5/weather?lat=${lat}&lon=${lon}&appid=${OPENWEATHER_API_KEY}&units=metric&lang=es`;
+
+      try {
+        const resp = await fetch(url);
+        const data = await resp.json();
+        const icon = getWeatherIcon(data.weather[0].main);
+        document.getElementById("weather-data").innerText =
+          `${icon} ${data.name}: ${data.weather[0].description}, ${data.main.temp}°C`;
+      } catch {
+        document.getElementById("weather-data").innerText = "No se pudo cargar el clima.";
+      }
+    });
+  }
+
+  function getWeatherIcon(main) {
+    switch (main) {
+      case 'Clear': return '☀️';
+      case 'Clouds': return '☁️';
+      case 'Rain': return '🌧️';
+      default: return '🌤️';
+    }
+  }
+
+  obtenerClima();
+</script>
+
+
+</body>
+</html>
+
+
+
+
+
+
+
+
+
